@@ -25,6 +25,7 @@
 //! | `ssh_config`    | Parse `~/.ssh/config` into host entries  |
 //! | `supervisor`    | Spawn child, stream stderr via mpsc      |
 //! | `modal`         | Dialog state types and UI functions      |
+//! | `hotkey`        | System-wide Friday recording shortcut    |
 
 #![cfg_attr(
     all(target_os = "windows", not(debug_assertions)),
@@ -32,6 +33,7 @@
 )]
 
 mod app;
+mod hotkey;
 mod log;
 mod modal;
 mod ssh_config;
@@ -71,10 +73,8 @@ fn main() -> Result<()> {
         Box::new(|cc| {
             install_windows_icon_fonts(&cc.egui_ctx);
             cc.egui_ctx.set_visuals(visuals());
-            #[cfg(target_os = "windows")]
             let mut app = app;
-            #[cfg(not(target_os = "windows"))]
-            let app = app;
+            app.install_record_hotkey(&cc.egui_ctx);
             #[cfg(target_os = "windows")]
             app.install_windows_tray(&cc.egui_ctx).map_err(|error| {
                 Box::<dyn std::error::Error + Send + Sync>::from(format!(

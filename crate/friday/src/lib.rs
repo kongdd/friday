@@ -8,17 +8,21 @@
 //!
 //! | Module     | Responsibility                                                |
 //! |------------|----------------------------------------------------------------|
-//! | `player`   | mpv path resolution, platform-correct `Command`, temp MP3 I/O. |
+//! | `player`   | mpv path resolution and platform-correct `Command`.             |
 //! | `http`     | Bind the listener, parse `/speak` payloads, dispatch playback.  |
-//! | `receiver` | State machine and worker lifecycle driven by the GUI.           |
+//! | `receiver` | Receiver state and worker lifecycle driven by the GUI.          |
+//! | `recorder` | Microphone capture, pause/resume, finish, and local replay.      |
 //!
-//! Hosts only need [`FridayReceiver`], [`FridayState`], and [`LISTEN_ADDR`];
-//! the rest stays crate-private.
+//! Hosts use the exported receiver and recorder controllers; platform details
+//! stay crate-private.
 
+mod capture;
 mod http;
 mod playback;
 mod player;
 mod receiver;
+mod recorder;
 
 pub use player::LISTEN_ADDR;
 pub use receiver::{FridayReceiver, FridayState};
+pub use recorder::{FridayRecorder, RecordingState};

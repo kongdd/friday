@@ -9,7 +9,7 @@
 //! 2. [`eframe::App::ui`] renders the dashboard, panels, logs, and modal.
 
 use std::{
-    collections::HashSet,
+    collections::{HashSet, VecDeque},
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -17,10 +17,11 @@ use std::{
 use autossh_core::{Config, KeepaliveConfig, RetryConfig};
 use eframe::egui;
 
+use crate::hotkey::RecordingHotkey;
 use crate::log::{LOG_BUFFER_LIMIT, LogScroll};
 use crate::modal::Modal;
 use crate::supervisor::SupervisorHandle;
-use friday::FridayReceiver;
+use friday::{FridayReceiver, FridayRecorder};
 
 pub mod centre;
 pub mod connections;
@@ -40,6 +41,9 @@ pub struct AutosshApp {
 
     pub supervisor: Option<SupervisorHandle>,
     pub friday: FridayReceiver,
+    pub recorder: FridayRecorder,
+    pub record_levels: VecDeque<f32>,
+    record_hotkey: RecordingHotkey,
     pub logs: Vec<crate::log::LogEntry>,
     log_scroll: LogScroll,
 
@@ -71,6 +75,9 @@ impl AutosshApp {
             selected_global: 0,
             supervisor: None,
             friday: FridayReceiver::new(),
+            recorder: FridayRecorder::new(),
+            record_levels: VecDeque::with_capacity(40),
+            record_hotkey: RecordingHotkey::new(),
             logs: Vec::new(),
             log_scroll: LogScroll::default(),
             modal: Modal::None,
@@ -81,6 +88,10 @@ impl AutosshApp {
             #[cfg(target_os = "windows")]
             hidden_in_tray: false,
         })
+    }
+
+    pub fn install_record_hotkey(&mut self, ctx: &egui::Context) {
+        self.record_hotkey.install(ctx);
     }
 
     #[cfg(target_os = "windows")]
@@ -118,6 +129,17 @@ impl AutosshApp {
             self.msg = None;
         }
     }
+
+    fn toggle_recording(&mut self) {
+        let result = if self.recorder.is_active() {
+            self.recorder.finish()
+        } else {
+            self.recorder.start()
+        };
+        if let Err(error) = result {
+            self.flash(error);
+        }
+    }
 }
 
 // ─── eframe entry ──────────────────────────────────────────────────────────────
@@ -128,8 +150,31 @@ impl eframe::App for AutosshApp {
         self.update_windows_tray(ctx);
         self.poll_supervisor();
         self.friday.poll();
+        if self.record_hotkey.pressed() {
+            self.toggle_recording();
+        }
+        self.recorder.poll();
+        if self.recorder.state() == friday::RecordingState::Recording {
+            let raw = self.recorder.level();
+            let previous = self.record_levels.back().copied().unwrap_or_default();
+            let level = if raw >= previous {
+                raw * 0.7 + previous * 0.3
+            } else {
+                raw * 0.25 + previous * 0.75
+            };
+            if self.record_levels.len() == 40 {
+                self.record_levels.pop_front();
+            }
+            self.record_levels.push_back(level);
+        } else if !self.recorder.is_active() {
+            self.record_levels.clear();
+        }
         self.prune_msg();
-        if self.supervisor.is_some() || self.friday.is_active() {
+        if self.supervisor.is_some()
+            || self.friday.is_active()
+            || self.recorder.is_active()
+            || self.recorder.is_playing()
+        {
             // Keep background state flowing even while the window is hidden.
             ctx.request_repaint_after(Duration::from_millis(150));
         }

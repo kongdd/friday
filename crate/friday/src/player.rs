@@ -58,23 +58,73 @@ pub(super) fn player_command(program: &str) -> Command {
     command
 }
 
-/// mpv flags shared by `/speak` playback: no window, no OSD, no terminal UI.
-pub(super) fn configure_player_command(command: &mut Command, rate: f32, path: &std::path::Path) {
+/// Configure silent, headless playback. Normalization is restricted to TTS:
+/// applying it to raw microphone recordings raises their noise floor.
+pub(super) fn configure_player_command(
+    command: &mut Command,
+    rate: f32,
+    path: &std::path::Path,
+    normalize_speech: bool,
+) {
     command
+        .arg("--no-config")
         .arg("--no-video")
         .arg("--really-quiet")
         .arg("--force-window=no")
         .arg("--osd-level=0")
-        .arg("--no-terminal")
+        .arg("--no-terminal");
+    if normalize_speech {
+        command.arg("--af=lavfi=[loudnorm=I=-16:TP=-1.5:LRA=11]");
+    }
+    command
+        .arg("--volume=100")
+        .arg("--volume-max=100")
         .arg(format!("--speed={rate}"))
         .arg(path);
 }
 
 pub(super) fn temporary_mp3_path() -> PathBuf {
+    temporary_audio_path("mp3")
+}
+
+fn temporary_audio_path(extension: &str) -> PathBuf {
     let id = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    std::env::temp_dir().join(format!("friday-{}-{nanos}-{id}.mp3", std::process::id()))
+    std::env::temp_dir().join(format!(
+        "friday-{}-{nanos}-{id}.{extension}",
+        std::process::id()
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn playback_keeps_unity_gain() {
+        let path = std::path::Path::new("voice.wav");
+        let mut recording = Command::new("mpv");
+        configure_player_command(&mut recording, 1.0, path, false);
+        let recording = recording
+            .get_args()
+            .map(|argument| argument.to_string_lossy())
+            .collect::<Vec<_>>();
+        assert!(
+            !recording
+                .iter()
+                .any(|argument| argument.starts_with("--af="))
+        );
+        assert!(recording.iter().any(|argument| argument == "--volume=100"));
+
+        let mut speech = Command::new("mpv");
+        configure_player_command(&mut speech, 1.0, path, true);
+        assert!(
+            speech
+                .get_args()
+                .any(|argument| argument == "--af=lavfi=[loudnorm=I=-16:TP=-1.5:LRA=11]")
+        );
+    }
 }

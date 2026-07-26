@@ -199,7 +199,7 @@ fn play_mp3(
         .map_err(|error| SpeakError::internal(format!("cannot write temporary MP3: {error}")))?;
 
     let mut command = player_command(player);
-    configure_player_command(&mut command, rate, &path);
+    configure_player_command(&mut command, rate, &path, true);
     let child = command.spawn().map_err(|error| {
         let _ = std::fs::remove_file(&path);
         SpeakError::internal(format!("cannot start mpv: {error}"))
@@ -274,16 +274,16 @@ mod tests {
     #[test]
     fn rejects_unsupported_payloads_before_starting_player() {
         let playback = PlaybackRegistry::new();
-        let error =
-            parse_and_play(br#"{"type":"wav","data":"","rate":1.0}"#, "mpv", &playback).unwrap_err();
+        let error = parse_and_play(br#"{"type":"wav","data":"","rate":1.0}"#, "mpv", &playback)
+            .unwrap_err();
         assert_eq!(error.to_string(), "unsupported type: wav");
     }
 
     #[test]
     fn rejects_playback_rate_outside_supported_range() {
         let playback = PlaybackRegistry::new();
-        let error =
-            parse_and_play(br#"{"type":"mp3","data":"","rate":2.1}"#, "mpv", &playback).unwrap_err();
+        let error = parse_and_play(br#"{"type":"mp3","data":"","rate":2.1}"#, "mpv", &playback)
+            .unwrap_err();
         assert_eq!(error.to_string(), "rate out of range: 2.1");
     }
 }
