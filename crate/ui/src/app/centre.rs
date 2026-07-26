@@ -6,7 +6,7 @@ use crate::log::{FG_DIM, FG_ERROR, FG_MUTED, FG_PRIMARY, FG_SUCCESS, FG_WARNING}
 use crate::modal::{GlobalGroup, Modal};
 use friday::{FridayState, LISTEN_ADDR, RecordingState};
 
-use super::AutosshApp;
+use super::{AutosshApp, RECORD_LEVEL_COUNT};
 
 #[derive(Clone, Copy)]
 enum RecorderAction {
@@ -25,7 +25,7 @@ fn render_recording_waveform(
 ) {
     let (rect, _) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), 18.0), egui::Sense::hover());
-    let bars: usize = 40;
+    let bars = RECORD_LEVEL_COUNT;
     let gap = 2.0;
     let width = (rect.width() - gap * (bars - 1) as f32) / bars as f32;
     let leading = bars.saturating_sub(levels.len());

@@ -355,14 +355,12 @@ mod platform {
                         thread::sleep(Duration::from_millis(10));
                     }
                     Ok(None) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
+                        kill_and_wait(child);
                         self.child.take();
                         return Err("audio recorder did not stop cleanly".to_string());
                     }
                     Err(error) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
+                        kill_and_wait(child);
                         self.child.take();
                         return Err(format!("cannot finish recording: {error}"));
                     }
@@ -374,13 +372,17 @@ mod platform {
     impl Drop for Capture {
         fn drop(&mut self) {
             if let Some(mut child) = self.child.take() {
-                let _ = child.kill();
-                let _ = child.wait();
+                kill_and_wait(&mut child);
             }
             for path in &self.segments {
                 let _ = std::fs::remove_file(path);
             }
         }
+    }
+
+    fn kill_and_wait(child: &mut Child) {
+        let _ = child.kill();
+        let _ = child.wait();
     }
 
     fn recent_level(path: &Path) -> Option<f32> {

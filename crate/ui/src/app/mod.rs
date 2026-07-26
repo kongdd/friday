@@ -1,8 +1,8 @@
 //! Application state and the `eframe::App` glue.
 //!
 //! `AutosshApp` holds the configuration, the supervisor handle, the log buffer,
-//! the modal state machine, and the Windows tray icon. Per-frame work runs in
-//! Work is split across the two phases provided by [`eframe::App`]:
+//! the modal state machine, and the Windows tray icon. Work is split across
+//! the two phases provided by [`eframe::App`]:
 //!
 //! 1. [`eframe::App::logic`] mutates state and handles tray commands. It also
 //!    runs while the native window is hidden, which keeps Show and Exit usable.
@@ -32,6 +32,8 @@ pub mod supervisor;
 
 // ─── app state ─────────────────────────────────────────────────────────────────
 
+const RECORD_LEVEL_COUNT: usize = 40;
+
 pub struct AutosshApp {
     pub config_path: PathBuf,
     pub config: Config,
@@ -42,7 +44,7 @@ pub struct AutosshApp {
     pub supervisor: Option<SupervisorHandle>,
     pub friday: FridayReceiver,
     pub recorder: FridayRecorder,
-    pub record_levels: VecDeque<f32>,
+    record_levels: VecDeque<f32>,
     record_hotkey: RecordingHotkey,
     pub logs: Vec<crate::log::LogEntry>,
     log_scroll: LogScroll,
@@ -76,7 +78,7 @@ impl AutosshApp {
             supervisor: None,
             friday: FridayReceiver::new(),
             recorder: FridayRecorder::new(),
-            record_levels: VecDeque::with_capacity(40),
+            record_levels: VecDeque::with_capacity(RECORD_LEVEL_COUNT),
             record_hotkey: RecordingHotkey::new(),
             logs: Vec::new(),
             log_scroll: LogScroll::default(),
@@ -162,7 +164,7 @@ impl eframe::App for AutosshApp {
             } else {
                 raw * 0.25 + previous * 0.75
             };
-            if self.record_levels.len() == 40 {
+            if self.record_levels.len() == RECORD_LEVEL_COUNT {
                 self.record_levels.pop_front();
             }
             self.record_levels.push_back(level);

@@ -84,19 +84,12 @@ pub(super) fn configure_player_command(
 }
 
 pub(super) fn temporary_mp3_path() -> PathBuf {
-    temporary_audio_path("mp3")
-}
-
-fn temporary_audio_path(extension: &str) -> PathBuf {
     let id = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    std::env::temp_dir().join(format!(
-        "friday-{}-{nanos}-{id}.{extension}",
-        std::process::id()
-    ))
+    std::env::temp_dir().join(format!("friday-{}-{nanos}-{id}.mp3", std::process::id()))
 }
 
 #[cfg(test)]
