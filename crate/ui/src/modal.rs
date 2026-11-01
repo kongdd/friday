@@ -419,7 +419,20 @@ pub fn state_from_connection(c: &ConnectionConfig) -> AddDialogState {
 
 // ─── dialog UI: add / edit connection ─────────────────────────────────────────
 
-fn enabled_dot(ui: &mut egui::Ui, enabled: &mut bool) {
+pub(crate) fn selection_checkbox(ui: &mut egui::Ui, checked: &mut bool) -> egui::Response {
+    ui.scope(|ui| {
+        let color = if ui.visuals().dark_mode {
+            egui::Color32::from_gray(160)
+        } else {
+            egui::Color32::from_gray(125)
+        };
+        ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::new(1.0, color);
+        ui.checkbox(checked, "")
+    })
+    .inner
+}
+
+pub(crate) fn enabled_dot(ui: &mut egui::Ui, enabled: &mut bool) {
     let color = if *enabled { FG_SUCCESS } else { FG_MUTED };
     let status = if *enabled { "enabled" } else { "disabled" };
     let (rect, response) = ui.allocate_exact_size(egui::vec2(12.0, 18.0), egui::Sense::click());
@@ -430,6 +443,41 @@ fn enabled_dot(ui: &mut egui::Ui, enabled: &mut bool) {
     {
         *enabled = !*enabled;
     }
+}
+
+fn forward_number(ui: &mut egui::Ui, number: usize) {
+    ui.add_sized(
+        [24.0, 18.0],
+        egui::Label::new(RichText::new(format!("{number}.")).small().color(FG_MUTED)),
+    );
+}
+
+fn delete_forward_button(ui: &mut egui::Ui) -> bool {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(18.0, 22.0), egui::Sense::click());
+    let stroke = egui::Stroke::new(
+        1.5,
+        if response.hovered() {
+            FG_ERROR
+        } else {
+            FG_MUTED
+        },
+    );
+    let center = rect.center();
+    ui.painter().line_segment(
+        [
+            center + egui::vec2(-4.0, -4.0),
+            center + egui::vec2(4.0, 4.0),
+        ],
+        stroke,
+    );
+    ui.painter().line_segment(
+        [
+            center + egui::vec2(-4.0, 4.0),
+            center + egui::vec2(4.0, -4.0),
+        ],
+        stroke,
+    );
+    response.on_hover_text("Delete port").clicked()
 }
 
 fn push_draft_forward(state: &mut AddDialogState) {
@@ -508,7 +556,8 @@ pub fn run_add_dialog_ui(ui: &mut egui::Ui, state: &mut AddDialogState, name_tak
         - GAP_TOTAL
         - FORWARD_SPEC_W
         - GAP_TOTAL
-        + FORWARD_END_COMPENSATION;
+        + FORWARD_END_COMPENSATION
+        - 18.0;
     const FORWARD_ROW_H: f32 = 28.0;
 
     ui.add_space(2.0);
@@ -669,16 +718,16 @@ pub fn run_add_dialog_ui(ui: &mut egui::Ui, state: &mut AddDialogState, name_tak
                 state.checked.resize(state.forwards.len(), false);
 
                 // ── existing forwards ───────────────────────────────────
+                let mut delete_forward = None;
                 for i in 0..state.forwards.len() {
                     ui.horizontal(|ui| {
                         // col 1: N. + delete checkbox + enabled status
                         ui.allocate_ui(egui::vec2(FORWARD_NUM_W, FORWARD_ROW_H), |ui| {
-                            let label = format!("{}.", i + 1);
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 3.0;
-                                ui.label(RichText::new(label).small().color(FG_MUTED));
+                                forward_number(ui, i + 1);
                                 let mut checked = *state.checked.get(i).unwrap_or(&false);
-                                if ui.checkbox(&mut checked, "").changed() {
+                                if selection_checkbox(ui, &mut checked).changed() {
                                     if let Some(slot) = state.checked.get_mut(i) {
                                         *slot = checked;
                                     }
@@ -686,7 +735,6 @@ pub fn run_add_dialog_ui(ui: &mut egui::Ui, state: &mut AddDialogState, name_tak
                                 enabled_dot(ui, &mut state.forwards[i].enabled);
                             });
                         });
-                        ui.add_space(COL_GAP);
                         // col 2: mode combo
                         ui.allocate_ui(egui::vec2(FORWARD_MODE_W, FORWARD_ROW_H), |ui| {
                             egui::ComboBox::from_id_salt(("add_mode", i))
@@ -726,7 +774,14 @@ pub fn run_add_dialog_ui(ui: &mut egui::Ui, state: &mut AddDialogState, name_tak
                                     .hint_text("optional note"),
                             );
                         });
+                        if delete_forward_button(ui) {
+                            delete_forward = Some(i);
+                        }
                     });
+                }
+                if let Some(i) = delete_forward {
+                    state.forwards.remove(i);
+                    state.checked.remove(i);
                 }
 
                 // ── delete checked ───────────────────────────────────────
@@ -757,16 +812,11 @@ pub fn run_add_dialog_ui(ui: &mut egui::Ui, state: &mut AddDialogState, name_tak
                     ui.allocate_ui(egui::vec2(FORWARD_NUM_W, FORWARD_ROW_H), |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 3.0;
-                            ui.label(
-                                RichText::new(format!("{}.", state.forwards.len() + 1))
-                                    .small()
-                                    .color(FG_MUTED),
-                            );
-                            ui.checkbox(&mut state.draft_checked, "");
+                            forward_number(ui, state.forwards.len() + 1);
+                            selection_checkbox(ui, &mut state.draft_checked);
                             enabled_dot(ui, &mut state.draft_enabled);
                         });
                     });
-                    ui.add_space(COL_GAP);
                     // col 2: mode combo
                     ui.allocate_ui(egui::vec2(FORWARD_MODE_W, FORWARD_ROW_H), |ui| {
                         egui::ComboBox::from_id_salt("draft_mode")

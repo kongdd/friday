@@ -289,9 +289,6 @@ impl Config {
                 "retry settings are invalid: initial must be > 0 and <= maximum, stable must be > 0"
             );
         }
-        if self.connections.is_empty() {
-            bail!("configuration has no connections");
-        }
         let mut names = HashSet::new();
         for connection in &self.connections {
             if connection.name.trim().is_empty() {

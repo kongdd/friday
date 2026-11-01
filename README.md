@@ -11,3 +11,7 @@
   - 工具栏下方显示接收状态、录音计时、实时音量波形及错误信息。
 
 - [ ] Friday发送录音并下达tasks给AI
+
+## macOS 打包
+
+运行 `scripts/package-macos.sh`，生成 `target/Autossh.app`；脚本不会安装应用或修改开机启动。可用 `CARGO_TARGET_DIR` 指定输出目录，`CODESIGN_IDENTITY` 指定签名证书（默认临时签名）。

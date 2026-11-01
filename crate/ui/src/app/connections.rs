@@ -3,8 +3,8 @@
 
 use eframe::egui::{self, RichText};
 
-use crate::log::{FG_DIM, FG_MUTED, FG_SUCCESS};
-use crate::modal::{Modal, state_from_connection};
+use crate::log::{FG_DIM, FG_MUTED};
+use crate::modal::{Modal, enabled_dot, selection_checkbox, state_from_connection};
 
 use super::AutosshApp;
 
@@ -26,6 +26,7 @@ impl AutosshApp {
             }
 
             let mut toggle_at: Option<usize> = None;
+            let mut enabled_at: Option<usize> = None;
             let mut edit_at: Option<usize> = None;
             let supervisor_running = self.supervisor_running();
             egui::ScrollArea::vertical()
@@ -43,8 +44,7 @@ impl AutosshApp {
                                 ui.horizontal(|ui| {
                                     // checkbox
                                     let mut cb = self.checked_conn.contains(&i);
-                                    if ui
-                                        .checkbox(&mut cb, "")
+                                    if selection_checkbox(ui, &mut cb)
                                         .on_hover_text("Select for batch deletion")
                                         .changed()
                                     {
@@ -56,7 +56,11 @@ impl AutosshApp {
                                     }
                                     // status dot
                                     let running = supervisor_running && conn.enabled;
-                                    ui.colored_label(if running { FG_SUCCESS } else { muted }, "●");
+                                    let mut enabled = conn.enabled;
+                                    enabled_dot(ui, &mut enabled);
+                                    if enabled != conn.enabled {
+                                        enabled_at = Some(i);
+                                    }
                                     // clickable details (select on click, edit on double-click)
                                     let mut mk = |text: RichText| {
                                         ui.add(egui::Label::new(text).sense(egui::Sense::click()))
@@ -74,7 +78,11 @@ impl AutosshApp {
                                     };
                                     let r2 = mk(RichText::new(details).small().color(muted));
                                     let r3 = mk(RichText::new(format!(
-                                        "{} forwards",
+                                        "{}/{} forwards",
+                                        conn.forwards
+                                            .iter()
+                                            .filter(|forward| forward.enabled)
+                                            .count(),
                                         conn.forwards.len()
                                     ))
                                     .small()
@@ -106,6 +114,10 @@ impl AutosshApp {
                     }
                 });
 
+            if let Some(i) = enabled_at {
+                self.config.connections[i].enabled = !self.config.connections[i].enabled;
+                self.dirty = true;
+            }
             if let Some(i) = toggle_at {
                 self.toggle_connection(i);
             }

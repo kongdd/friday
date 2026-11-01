@@ -14,6 +14,9 @@ impl AutosshApp {
             return;
         }
         self.supervisor.take();
+        if self.dirty && !self.save() {
+            return;
+        }
         let Some(binary) = locate_supervisor() else {
             self.flash("cannot find autossh-core binary beside this UI; check PATH");
             return;
@@ -62,17 +65,10 @@ impl AutosshApp {
             self.logs_collapsed = false;
         }
 
-        if let Err(error) = self.config.save(&self.config_path) {
-            if let Some(connection) = self.config.connections.get_mut(index) {
-                connection.enabled = was_enabled;
-            }
-            self.flash(format!(
-                "cannot {} {name}: {error:#}",
-                if start { "start" } else { "stop" }
-            ));
+        self.dirty = true;
+        if !self.save() {
             return;
         }
-        self.dirty = false;
 
         if start {
             self.flash(format!("starting {name}"));
@@ -84,14 +80,28 @@ impl AutosshApp {
         }
     }
 
-    pub fn save(&mut self) {
-        match self.config.save(&self.config_path) {
+    pub fn save(&mut self) -> bool {
+        let result = (|| -> anyhow::Result<()> {
+            let current = super::read_config_snapshot(&self.config_path)?;
+            anyhow::ensure!(
+                current == self.config_snapshot,
+                "configuration changed on disk; reload before saving"
+            );
+            self.config.save(&self.config_path)?;
+            self.config_snapshot = super::read_config_snapshot(&self.config_path)?;
+            Ok(())
+        })();
+        match result {
             Ok(()) => {
                 self.dirty = false;
-                self.flash(format!("saved {}", self.config_path.display()));
+                self.save_error = None;
+                true
             }
             Err(error) => {
-                self.flash(format!("save failed: {error:#}"));
+                let message = format!("Save failed: {error:#}");
+                self.save_error = Some(message.clone());
+                self.flash(message);
+                false
             }
         }
     }

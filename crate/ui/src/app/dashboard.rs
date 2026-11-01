@@ -22,7 +22,13 @@ impl AutosshApp {
                     egui::Label::new(
                         RichText::new(format!(
                             "{path} · {}",
-                            if self.dirty { "Unsaved" } else { "Saved" }
+                            if self.save_error.is_some() {
+                                "Save failed"
+                            } else if self.dirty {
+                                "Unsaved"
+                            } else {
+                                "Saved"
+                            }
                         ))
                         .small()
                         .color(if self.dirty {
@@ -33,7 +39,15 @@ impl AutosshApp {
                     )
                     .truncate(),
                 )
-                .on_hover_text(&path);
+                .on_hover_text(self.save_error.as_deref().unwrap_or(&path));
+                if self.save_error.is_some() {
+                    if ui.small_button("Retry").clicked() {
+                        self.save();
+                    }
+                    if ui.small_button("Reload").clicked() {
+                        self.request_reload();
+                    }
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(6.0);
                     let running = self.supervisor_running();

@@ -128,6 +128,22 @@ impl AutosshApp {
                     self.modal = Modal::Add(crate::modal::AddDialogState::default());
                 }
                 ui.menu_button("Config", |ui| {
+                    if ui.button("Open configuration").clicked() {
+                        #[cfg(target_os = "macos")]
+                        let mut command =
+                            std::process::Command::new("/Applications/Zed.app/Contents/MacOS/cli");
+                        #[cfg(not(target_os = "macos"))]
+                        let mut command = std::process::Command::new("zed");
+                        match command.arg(&self.config_path).spawn() {
+                            Ok(mut child) => {
+                                std::thread::spawn(move || {
+                                    let _ = child.wait();
+                                });
+                            }
+                            Err(error) => self.flash(format!("Cannot open configuration: {error}")),
+                        }
+                        ui.close();
+                    }
                     if ui.button("Import configuration…").clicked() {
                         self.modal = Modal::Import(crate::modal::ImportDialogState {
                             path_input: crate::default_path().display().to_string(),
@@ -143,14 +159,6 @@ impl AutosshApp {
                         ui.close();
                     }
                 });
-                let save_color = if self.dirty {
-                    FG_WARNING
-                } else {
-                    ui.visuals().text_color()
-                };
-                if ui.button(RichText::new("Save").color(save_color)).clicked() {
-                    self.save();
-                }
                 if ui.button("Setting").clicked() {
                     self.settings_open = true;
                 }

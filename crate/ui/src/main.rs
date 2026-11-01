@@ -38,7 +38,7 @@ mod log;
 mod modal;
 mod ssh_config;
 mod supervisor;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 mod tray;
 mod tunnel_icon;
 
@@ -65,21 +65,26 @@ fn main() -> Result<()> {
     }
     let native_options = eframe::NativeOptions {
         viewport,
+        #[cfg(target_os = "macos")]
+        event_loop_builder: Some(Box::new(|builder| {
+            use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
+            builder.with_activation_policy(ActivationPolicy::Accessory);
+        })),
         ..Default::default()
     };
     eframe::run_native(
         "autossh-ui",
         native_options,
         Box::new(|cc| {
-            install_windows_icon_fonts(&cc.egui_ctx);
+            install_system_fonts(&cc.egui_ctx);
             cc.egui_ctx.set_visuals(visuals());
             enlarge_fonts(&cc.egui_ctx);
             let mut app = app;
             app.install_record_hotkey(&cc.egui_ctx);
-            #[cfg(target_os = "windows")]
-            app.install_windows_tray(&cc.egui_ctx).map_err(|error| {
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
+            app.install_tray(&cc.egui_ctx).map_err(|error| {
                 Box::<dyn std::error::Error + Send + Sync>::from(format!(
-                    "cannot create Windows tray icon: {error:#}"
+                    "cannot create tray icon: {error:#}"
                 ))
             })?;
             Ok(Box::new(app))
@@ -123,7 +128,7 @@ pub fn default_path() -> PathBuf {
 ///   * CJK characters in connection names / hosts render correctly without
 ///     the user having to install a separate font.
 #[cfg(target_os = "windows")]
-fn install_windows_icon_fonts(ctx: &egui::Context) {
+fn install_system_fonts(ctx: &egui::Context) {
     use eframe::egui::{FontData, FontDefinitions, FontFamily};
 
     let font_dir = std::env::var_os("WINDIR")
@@ -159,9 +164,40 @@ fn install_windows_icon_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-/// No system-font configuration is needed outside Windows.
+/// Add a system CJK font as a fallback without changing the default UI font.
 #[cfg(not(target_os = "windows"))]
-fn install_windows_icon_fonts(_ctx: &egui::Context) {}
+fn install_system_fonts(ctx: &egui::Context) {
+    use eframe::egui::{FontData, FontDefinitions, FontFamily};
+
+    #[cfg(target_os = "macos")]
+    let path = Some(PathBuf::from("/System/Library/Fonts/Hiragino Sans GB.ttc"));
+    #[cfg(not(target_os = "macos"))]
+    let path = std::process::Command::new("fc-match")
+        .args(["-f", "%{file}", ":lang=zh-cn"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from);
+
+    if let Some(bytes) = path.and_then(|path| std::fs::read(path).ok()) {
+        let mut fonts = FontDefinitions::default();
+        let name = "system-cjk".to_owned();
+        let font = FontData::from_owned(bytes);
+        // Hiragino's glyphs sit higher than egui's default Latin font.
+        #[cfg(target_os = "macos")]
+        let font = font.tweak(egui::epaint::text::FontTweak {
+            y_offset_factor: 0.20,
+            ..Default::default()
+        });
+        fonts.font_data.insert(name.clone(), font.into());
+        for family in [FontFamily::Proportional, FontFamily::Monospace] {
+            fonts.families.entry(family).or_default().push(name.clone());
+        }
+        ctx.set_fonts(fonts);
+    }
+}
 
 /// The compact window uses slightly larger type so labels stay readable.
 fn enlarge_fonts(ctx: &egui::Context) {

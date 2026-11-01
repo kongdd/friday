@@ -26,7 +26,7 @@ impl AutosshApp {
                 if !collapsed {
                     ui.add_space(3.0);
                 }
-                ui.horizontal(|ui| {
+                let mut heading_row = |ui: &mut egui::Ui| {
                     ui.add_space(8.0);
                     let marker = icons::collapse_button(ui, collapsed).on_hover_text(if collapsed {
                         "Expand logs"
@@ -61,10 +61,16 @@ impl AutosshApp {
                             self.log_scroll.offset_from_bottom = 0;
                         }
                     });
-                });
+                };
                 if collapsed {
+                    ui.allocate_ui_with_layout(
+                        ui.available_size(),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        &mut heading_row,
+                    );
                     return;
                 }
+                ui.horizontal(heading_row);
                 super::row_separator(ui);
                 egui::ScrollArea::vertical()
                     .stick_to_bottom(self.log_scroll.follow)
