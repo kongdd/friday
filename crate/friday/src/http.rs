@@ -99,8 +99,9 @@ fn handle_request(mut request: Request, player: &str, playback: &PlaybackRegistr
             text_response(200, "ok\n")
         }
         (Method::Post, "/speak") => {
+            let generation = playback.begin();
             match read_body_limited(&mut request)
-                .and_then(|body| parse_and_play(&body, player, playback))
+                .and_then(|body| parse_and_play(&body, player, playback, generation))
             {
                 Ok(()) => text_response(200, "ok\n"),
                 Err(error) => text_response(error.status, &format!("error: {error}\n")),
@@ -167,6 +168,7 @@ fn parse_and_play(
     body: &[u8],
     player: &str,
     playback: &PlaybackRegistry,
+    generation: u64,
 ) -> Result<(), SpeakError> {
     let payload: Payload = serde_json::from_slice(body)
         .map_err(|error| SpeakError::bad_request(format!("invalid JSON: {error}")))?;
@@ -182,7 +184,7 @@ fn parse_and_play(
             payload.rate
         )));
     }
-    play_mp3(&payload.data, payload.rate, player, playback)
+    play_mp3(&payload.data, payload.rate, player, playback, generation)
 }
 
 fn play_mp3(
@@ -190,6 +192,7 @@ fn play_mp3(
     rate: f32,
     player: &str,
     playback: &PlaybackRegistry,
+    generation: u64,
 ) -> Result<(), SpeakError> {
     let bytes = general_purpose::STANDARD
         .decode(data)
@@ -204,7 +207,7 @@ fn play_mp3(
         let _ = std::fs::remove_file(&path);
         SpeakError::internal(format!("cannot start mpv: {error}"))
     })?;
-    playback.register(child, path);
+    playback.register(generation, child, path);
     Ok(())
 }
 
@@ -274,16 +277,28 @@ mod tests {
     #[test]
     fn rejects_unsupported_payloads_before_starting_player() {
         let playback = PlaybackRegistry::new();
-        let error = parse_and_play(br#"{"type":"wav","data":"","rate":1.0}"#, "mpv", &playback)
-            .unwrap_err();
+        let generation = playback.begin();
+        let error = parse_and_play(
+            br#"{"type":"wav","data":"","rate":1.0}"#,
+            "mpv",
+            &playback,
+            generation,
+        )
+        .unwrap_err();
         assert_eq!(error.to_string(), "unsupported type: wav");
     }
 
     #[test]
     fn rejects_playback_rate_outside_supported_range() {
         let playback = PlaybackRegistry::new();
-        let error = parse_and_play(br#"{"type":"mp3","data":"","rate":2.1}"#, "mpv", &playback)
-            .unwrap_err();
+        let generation = playback.begin();
+        let error = parse_and_play(
+            br#"{"type":"mp3","data":"","rate":2.1}"#,
+            "mpv",
+            &playback,
+            generation,
+        )
+        .unwrap_err();
         assert_eq!(error.to_string(), "rate out of range: 2.1");
     }
 }

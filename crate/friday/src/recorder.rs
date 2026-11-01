@@ -221,7 +221,7 @@ impl Drop for FridayRecorder {
     }
 }
 
-fn recording_wav_path() -> Result<PathBuf, String> {
+pub fn recording_dir() -> Result<PathBuf, String> {
     let executable =
         std::env::current_exe().map_err(|error| format!("cannot locate executable: {error}"))?;
     let media = executable
@@ -230,7 +230,14 @@ fn recording_wav_path() -> Result<PathBuf, String> {
         .join("media");
     std::fs::create_dir_all(&media)
         .map_err(|error| format!("cannot create {}: {error}", media.display()))?;
-    next_recording_path(&media, &Local::now().format("%Y%m%d").to_string())
+    Ok(media)
+}
+
+fn recording_wav_path() -> Result<PathBuf, String> {
+    next_recording_path(
+        &recording_dir()?,
+        &Local::now().format("%Y%m%d").to_string(),
+    )
 }
 
 fn next_recording_path(media: &Path, date: &str) -> Result<PathBuf, String> {

@@ -25,4 +25,4 @@ mod recorder;
 
 pub use player::LISTEN_ADDR;
 pub use receiver::{FridayReceiver, FridayState};
-pub use recorder::{FridayRecorder, RecordingState};
+pub use recorder::{FridayRecorder, RecordingState, recording_dir};
