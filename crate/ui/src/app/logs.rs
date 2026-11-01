@@ -5,23 +5,51 @@ use eframe::egui::{self, RichText};
 use crate::log::{FG_DIM, FG_MUTED, LOG_BUFFER_LIMIT, format_unix_ts};
 
 use super::AutosshApp;
+use super::icons::{self, Icon};
 
 impl AutosshApp {
     pub fn render_logs_panel(&mut self, root: &mut egui::Ui) {
-        egui::Panel::bottom("logs")
-            .resizable(true)
+        let collapsed = self.logs_collapsed;
+        let mut panel = egui::Panel::bottom("logs");
+        if collapsed {
+            // Collapsed: keep only the heading row.
+            panel = panel.exact_height(30.0);
+        } else {
             // Compact by default; drag the splitter when a long tail is needed.
-            .default_size(210.0)
-            .size_range(160.0..=360.0)
-            .show_inside(root, |ui| {
+            panel = panel
+                .resizable(true)
+                .default_size(210.0)
+                .size_range(160.0..=360.0);
+        }
+        panel.show_inside(root, |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                if !collapsed {
+                    ui.add_space(3.0);
+                }
                 ui.horizontal(|ui| {
                     ui.add_space(8.0);
-                    ui.heading("Logs");
-                    ui.label(
-                        RichText::new(format!("{} lines", self.logs.len()))
-                            .small()
-                            .color(FG_MUTED),
+                    let marker = icons::collapse_button(ui, collapsed).on_hover_text(if collapsed {
+                        "Expand logs"
+                    } else {
+                        "Collapse logs"
+                    });
+                    let heading = ui.add(
+                        egui::Label::new(RichText::new("Logs").heading())
+                            .sense(egui::Sense::click()),
                     );
+                    if marker.clicked() || heading.clicked() {
+                        self.logs_collapsed = !collapsed;
+                    }
+                    if collapsed {
+                        if !self.logs.is_empty() {
+                            ui.label(
+                                RichText::new(format!("{} lines", self.logs.len()))
+                                    .small()
+                                    .color(FG_MUTED),
+                            );
+                        }
+                        return;
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("clear").clicked() {
                             self.logs.clear();
@@ -34,7 +62,10 @@ impl AutosshApp {
                         }
                     });
                 });
-                ui.separator();
+                if collapsed {
+                    return;
+                }
+                super::row_separator(ui);
                 egui::ScrollArea::vertical()
                     .stick_to_bottom(self.log_scroll.follow)
                     .auto_shrink([false, false])

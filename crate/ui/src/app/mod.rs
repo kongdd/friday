@@ -26,6 +26,7 @@ use friday::{FridayReceiver, FridayRecorder};
 pub mod centre;
 pub mod connections;
 pub mod dashboard;
+pub mod icons;
 pub mod logs;
 pub mod modal_host;
 pub mod supervisor;
@@ -34,12 +35,55 @@ pub mod supervisor;
 
 const RECORD_LEVEL_COUNT: usize = 40;
 
+/// Full-width, one-physical-pixel separator with balanced row spacing.
+fn row_separator(ui: &mut egui::Ui) {
+    let pixel = ui.ctx().pixels_per_point().recip();
+    let (gap, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), 6.0 + pixel),
+        egui::Sense::hover(),
+    );
+    let y = (gap.center().y / pixel).floor() * pixel + pixel / 2.0;
+    ui.painter().hline(
+        ui.clip_rect().x_range(),
+        y,
+        egui::Stroke::new(pixel, egui::Color32::from_gray(230)),
+    );
+}
+
+fn card_style(
+    ui: &egui::Ui,
+    selected: bool,
+) -> (egui::Color32, egui::Stroke, egui::Color32, egui::Color32) {
+    use crate::log::{FG_DIM, FG_MUTED, FG_PRIMARY};
+    use egui::Color32;
+
+    let dark = ui.visuals().dark_mode;
+    let accent = if dark {
+        FG_PRIMARY
+    } else {
+        Color32::from_rgb(0, 110, 120)
+    };
+    let muted = if dark {
+        FG_MUTED
+    } else {
+        Color32::from_rgb(95, 100, 110)
+    };
+    let (fill, width, border) = match (dark, selected) {
+        (true, true) => (Color32::from_rgb(34, 56, 70), 1.0, accent),
+        (true, false) => (Color32::from_rgb(24, 28, 34), 0.5, FG_DIM),
+        (false, true) => (Color32::from_rgb(220, 240, 242), 1.0, accent),
+        (false, false) => (Color32::from_rgb(245, 246, 248), 0.5, muted),
+    };
+    (fill, egui::Stroke::new(width, border), accent, muted)
+}
+
 pub struct AutosshApp {
     pub config_path: PathBuf,
     pub config: Config,
     pub dirty: bool,
     pub selected_connection: usize,
     pub selected_global: usize,
+    settings_open: bool,
 
     pub supervisor: Option<SupervisorHandle>,
     pub friday: FridayReceiver,
@@ -48,6 +92,9 @@ pub struct AutosshApp {
     record_hotkey: RecordingHotkey,
     pub logs: Vec<crate::log::LogEntry>,
     log_scroll: LogScroll,
+    /// Logs start collapsed to keep the window compact; starting a connection
+    /// or Start all expands them so supervisor output is immediately visible.
+    logs_collapsed: bool,
 
     modal: Modal,
     msg: Option<(String, Instant)>,
@@ -75,6 +122,7 @@ impl AutosshApp {
             dirty: false,
             selected_connection: 0,
             selected_global: 0,
+            settings_open: false,
             supervisor: None,
             friday: FridayReceiver::new(),
             recorder: FridayRecorder::new(),
@@ -82,6 +130,7 @@ impl AutosshApp {
             record_hotkey: RecordingHotkey::new(),
             logs: Vec::new(),
             log_scroll: LogScroll::default(),
+            logs_collapsed: true,
             modal: Modal::None,
             msg: None,
             checked_conn: HashSet::new(),
@@ -185,9 +234,9 @@ impl eframe::App for AutosshApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.render_modal(ui.ctx());
         self.render_dashboard(ui);
+        self.render_toolbar(ui);
         self.render_logs_panel(ui);
         self.render_connections_panel(ui);
-        self.render_centre_panel(ui);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

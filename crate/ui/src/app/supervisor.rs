@@ -6,6 +6,8 @@ use super::AutosshApp;
 
 impl AutosshApp {
     pub fn start_supervisor(&mut self) {
+        // Starting anything is the cue to watch the log tail.
+        self.logs_collapsed = false;
         // A supervisor that exited is stale; discard its handle before a new
         // Start All so the button can recover without restarting the UI.
         if self.supervisor_running() {
@@ -56,6 +58,9 @@ impl AutosshApp {
         // config loaded before the supervisor was launched.
         let start = !running || !was_enabled;
         connection.enabled = start;
+        if start {
+            self.logs_collapsed = false;
+        }
 
         if let Err(error) = self.config.save(&self.config_path) {
             if let Some(connection) = self.config.connections.get_mut(index) {

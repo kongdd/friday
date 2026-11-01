@@ -651,161 +651,171 @@ pub fn run_add_dialog_ui(ui: &mut egui::Ui, state: &mut AddDialogState, name_tak
                 .color(FG_MUTED),
         );
     });
-    ui.group(|ui| {
-        if state.forwards.is_empty() {
-            ui.label(
+    let list_height =
+        (ui.ctx().content_rect().bottom() - ui.cursor().top() - 70.0).clamp(100.0, 350.0);
+    egui::ScrollArea::vertical()
+        .max_height(list_height)
+        .show(ui, |ui| {
+            ui.group(|ui| {
+                if state.forwards.is_empty() {
+                    ui.label(
                 RichText::new(
                     "no ports yet — fill the row below; it will be included when you press Apply",
                 )
                 .small()
                 .color(FG_DIM),
             );
-        }
-        state.checked.resize(state.forwards.len(), false);
+                }
+                state.checked.resize(state.forwards.len(), false);
 
-        // ── existing forwards ───────────────────────────────────
-        for i in 0..state.forwards.len() {
-            ui.horizontal(|ui| {
-                // col 1: N. + delete checkbox + enabled status
-                ui.allocate_ui(egui::vec2(FORWARD_NUM_W, FORWARD_ROW_H), |ui| {
-                    let label = format!("{}.", i + 1);
+                // ── existing forwards ───────────────────────────────────
+                for i in 0..state.forwards.len() {
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 3.0;
-                        ui.label(RichText::new(label).small().color(FG_MUTED));
-                        let mut checked = *state.checked.get(i).unwrap_or(&false);
-                        if ui.checkbox(&mut checked, "").changed() {
-                            if let Some(slot) = state.checked.get_mut(i) {
-                                *slot = checked;
-                            }
-                        }
-                        enabled_dot(ui, &mut state.forwards[i].enabled);
-                    });
-                });
-                ui.add_space(COL_GAP);
-                // col 2: mode combo
-                ui.allocate_ui(egui::vec2(FORWARD_MODE_W, FORWARD_ROW_H), |ui| {
-                    egui::ComboBox::from_id_salt(("add_mode", i))
-                        .selected_text(forward_mode_label(state.forwards[i].mode))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut state.forwards[i].mode,
-                                ForwardMode::Local,
-                                forward_mode_label(ForwardMode::Local),
-                            );
-                            ui.selectable_value(
-                                &mut state.forwards[i].mode,
-                                ForwardMode::Remote,
-                                forward_mode_label(ForwardMode::Remote),
-                            );
-                            ui.selectable_value(
-                                &mut state.forwards[i].mode,
-                                ForwardMode::Dynamic,
-                                forward_mode_label(ForwardMode::Dynamic),
+                        // col 1: N. + delete checkbox + enabled status
+                        ui.allocate_ui(egui::vec2(FORWARD_NUM_W, FORWARD_ROW_H), |ui| {
+                            let label = format!("{}.", i + 1);
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 3.0;
+                                ui.label(RichText::new(label).small().color(FG_MUTED));
+                                let mut checked = *state.checked.get(i).unwrap_or(&false);
+                                if ui.checkbox(&mut checked, "").changed() {
+                                    if let Some(slot) = state.checked.get_mut(i) {
+                                        *slot = checked;
+                                    }
+                                }
+                                enabled_dot(ui, &mut state.forwards[i].enabled);
+                            });
+                        });
+                        ui.add_space(COL_GAP);
+                        // col 2: mode combo
+                        ui.allocate_ui(egui::vec2(FORWARD_MODE_W, FORWARD_ROW_H), |ui| {
+                            egui::ComboBox::from_id_salt(("add_mode", i))
+                                .selected_text(forward_mode_label(state.forwards[i].mode))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut state.forwards[i].mode,
+                                        ForwardMode::Local,
+                                        forward_mode_label(ForwardMode::Local),
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.forwards[i].mode,
+                                        ForwardMode::Remote,
+                                        forward_mode_label(ForwardMode::Remote),
+                                    );
+                                    ui.selectable_value(
+                                        &mut state.forwards[i].mode,
+                                        ForwardMode::Dynamic,
+                                        forward_mode_label(ForwardMode::Dynamic),
+                                    );
+                                });
+                        });
+                        ui.add_space(COL_GAP);
+                        // col 3: forward spec
+                        let spec_hint = forward_hint(state.forwards[i].mode);
+                        ui.allocate_ui(egui::vec2(FORWARD_SPEC_W, FORWARD_ROW_H), |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut state.forwards[i].forward)
+                                    .hint_text(spec_hint),
                             );
                         });
-                });
-                ui.add_space(COL_GAP);
-                // col 3: forward spec
-                let spec_hint = forward_hint(state.forwards[i].mode);
-                ui.allocate_ui(egui::vec2(FORWARD_SPEC_W, FORWARD_ROW_H), |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut state.forwards[i].forward)
-                            .hint_text(spec_hint),
-                    );
-                });
-                ui.add_space(COL_GAP);
-                // col 4: description
-                ui.allocate_ui(egui::vec2(FORWARD_DESC_W, FORWARD_ROW_H), |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut state.forwards[i].description)
-                            .hint_text("optional note"),
-                    );
-                });
-            });
-        }
+                        ui.add_space(COL_GAP);
+                        // col 4: description
+                        ui.allocate_ui(egui::vec2(FORWARD_DESC_W, FORWARD_ROW_H), |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut state.forwards[i].description)
+                                    .hint_text("optional note"),
+                            );
+                        });
+                    });
+                }
 
-        // ── delete checked ───────────────────────────────────────
-        let n_checked = state.checked.iter().filter(|&&c| c).count();
-        if n_checked > 0 {
-            if ui
-                .button(RichText::new(format!("🗑  delete checked ({n_checked})")).color(FG_ERROR))
-                .clicked()
-            {
-                let mut i = state.forwards.len();
-                while i > 0 {
-                    i -= 1;
-                    if i < state.checked.len() && state.checked[i] {
-                        state.forwards.remove(i);
-                        state.checked.remove(i);
+                // ── delete checked ───────────────────────────────────────
+                let n_checked = state.checked.iter().filter(|&&c| c).count();
+                if n_checked > 0 {
+                    if ui
+                        .button(
+                            RichText::new(format!("🗑  delete checked ({n_checked})"))
+                                .color(FG_ERROR),
+                        )
+                        .clicked()
+                    {
+                        let mut i = state.forwards.len();
+                        while i > 0 {
+                            i -= 1;
+                            if i < state.checked.len() && state.checked[i] {
+                                state.forwards.remove(i);
+                                state.checked.remove(i);
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        // ── draft row (same columns and spacing as existing rows) ──
-        let mut submit_draft = false;
-        ui.horizontal(|ui| {
-            // col 1: N+1 + delete checkbox + enabled status
-            ui.allocate_ui(egui::vec2(FORWARD_NUM_W, FORWARD_ROW_H), |ui| {
+                // ── draft row (same columns and spacing as existing rows) ──
+                let mut submit_draft = false;
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 3.0;
-                    ui.label(
-                        RichText::new(format!("{}.", state.forwards.len() + 1))
-                            .small()
-                            .color(FG_MUTED),
-                    );
-                    ui.checkbox(&mut state.draft_checked, "");
-                    enabled_dot(ui, &mut state.draft_enabled);
-                });
-            });
-            ui.add_space(COL_GAP);
-            // col 2: mode combo
-            ui.allocate_ui(egui::vec2(FORWARD_MODE_W, FORWARD_ROW_H), |ui| {
-                egui::ComboBox::from_id_salt("draft_mode")
-                    .selected_text(forward_mode_label(state.draft_mode))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut state.draft_mode,
-                            ForwardMode::Local,
-                            forward_mode_label(ForwardMode::Local),
-                        );
-                        ui.selectable_value(
-                            &mut state.draft_mode,
-                            ForwardMode::Remote,
-                            forward_mode_label(ForwardMode::Remote),
-                        );
-                        ui.selectable_value(
-                            &mut state.draft_mode,
-                            ForwardMode::Dynamic,
-                            forward_mode_label(ForwardMode::Dynamic),
-                        );
+                    // col 1: N+1 + delete checkbox + enabled status
+                    ui.allocate_ui(egui::vec2(FORWARD_NUM_W, FORWARD_ROW_H), |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 3.0;
+                            ui.label(
+                                RichText::new(format!("{}.", state.forwards.len() + 1))
+                                    .small()
+                                    .color(FG_MUTED),
+                            );
+                            ui.checkbox(&mut state.draft_checked, "");
+                            enabled_dot(ui, &mut state.draft_enabled);
+                        });
                     });
-            });
-            ui.add_space(COL_GAP);
-            // col 3: forward spec
-            ui.allocate_ui(egui::vec2(FORWARD_SPEC_W, FORWARD_ROW_H), |ui| {
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut state.draft_forward)
-                        .hint_text(forward_hint(state.draft_mode)),
-                );
-                submit_draft |= (response.has_focus() || response.lost_focus())
-                    && ui.input(|input| input.key_pressed(egui::Key::Enter));
-            });
-            ui.add_space(COL_GAP);
-            // col 4: description; full width keeps the draft row aligned
-            // with every configured-forward row above it.
-            ui.allocate_ui(egui::vec2(FORWARD_DESC_W, FORWARD_ROW_H), |ui| {
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut state.draft_desc).hint_text("optional note"),
-                );
-                submit_draft |= (response.has_focus() || response.lost_focus())
-                    && ui.input(|input| input.key_pressed(egui::Key::Enter));
+                    ui.add_space(COL_GAP);
+                    // col 2: mode combo
+                    ui.allocate_ui(egui::vec2(FORWARD_MODE_W, FORWARD_ROW_H), |ui| {
+                        egui::ComboBox::from_id_salt("draft_mode")
+                            .selected_text(forward_mode_label(state.draft_mode))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut state.draft_mode,
+                                    ForwardMode::Local,
+                                    forward_mode_label(ForwardMode::Local),
+                                );
+                                ui.selectable_value(
+                                    &mut state.draft_mode,
+                                    ForwardMode::Remote,
+                                    forward_mode_label(ForwardMode::Remote),
+                                );
+                                ui.selectable_value(
+                                    &mut state.draft_mode,
+                                    ForwardMode::Dynamic,
+                                    forward_mode_label(ForwardMode::Dynamic),
+                                );
+                            });
+                    });
+                    ui.add_space(COL_GAP);
+                    // col 3: forward spec
+                    ui.allocate_ui(egui::vec2(FORWARD_SPEC_W, FORWARD_ROW_H), |ui| {
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut state.draft_forward)
+                                .hint_text(forward_hint(state.draft_mode)),
+                        );
+                        submit_draft |= (response.has_focus() || response.lost_focus())
+                            && ui.input(|input| input.key_pressed(egui::Key::Enter));
+                    });
+                    ui.add_space(COL_GAP);
+                    // col 4: description; full width keeps the draft row aligned
+                    // with every configured-forward row above it.
+                    ui.allocate_ui(egui::vec2(FORWARD_DESC_W, FORWARD_ROW_H), |ui| {
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut state.draft_desc)
+                                .hint_text("optional note"),
+                        );
+                        submit_draft |= (response.has_focus() || response.lost_focus())
+                            && ui.input(|input| input.key_pressed(egui::Key::Enter));
+                    });
+                });
+                if submit_draft {
+                    push_draft_forward(state);
+                }
             });
         });
-        if submit_draft {
-            push_draft_forward(state);
-        }
-    });
 
     // ── footer ─────────────────────────────────────────────────────────────
     ui.add_space(4.0);

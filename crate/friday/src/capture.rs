@@ -9,7 +9,7 @@ fn rms_level(square_sum: f64, count: usize) -> f32 {
     ((square_sum / count as f64).sqrt() / 32_768.0 * 8.0).clamp(0.0, 1.0) as f32
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 mod platform {
     use std::{
         fs::File,
@@ -419,7 +419,7 @@ mod platform {
     }
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 mod platform {
     use std::path::Path;
 
@@ -427,7 +427,7 @@ mod platform {
 
     impl Capture {
         pub(crate) fn start(_path: &Path) -> Result<Self, String> {
-            Err("audio recording is supported on Windows and Linux".to_string())
+            Err("audio recording is supported on Windows, macOS and Linux".to_string())
         }
 
         pub(crate) fn pause(&mut self) -> Result<(), String> {

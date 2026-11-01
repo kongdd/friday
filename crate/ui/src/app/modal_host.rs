@@ -52,7 +52,7 @@ impl AutosshApp {
                         .any(|(other_idx, connection)| {
                             other_idx != idx && connection.name.trim() == state.name.trim()
                         });
-                egui::Window::new(format!("Edit connection ({} → {})", idx + 1, name))
+                egui::Window::new(format!("Edit connection ({} - {})", idx + 1, name))
                     .collapsible(false)
                     .resizable(false)
                     .default_size([620.0, 430.0])

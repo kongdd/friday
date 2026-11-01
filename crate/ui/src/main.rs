@@ -38,9 +38,9 @@ mod log;
 mod modal;
 mod ssh_config;
 mod supervisor;
-mod tunnel_icon;
 #[cfg(target_os = "windows")]
 mod tray;
+mod tunnel_icon;
 
 use std::{path::PathBuf, sync::Arc};
 
@@ -58,8 +58,8 @@ fn main() -> Result<()> {
         .with_title("autossh-core")
         // Compact default: Connections + Keepalive/Friday fit without a tall
         // empty mid band; user can still resize up for long log tails.
-        .with_inner_size([980.0, 560.0])
-        .with_min_inner_size([780.0, 480.0]);
+        .with_inner_size([680.0, 460.0])
+        .with_min_inner_size([560.0, 400.0]);
     if let Some(icon) = tunnel_icon::window_icon() {
         viewport = viewport.with_icon(Arc::new(icon));
     }
@@ -73,6 +73,7 @@ fn main() -> Result<()> {
         Box::new(|cc| {
             install_windows_icon_fonts(&cc.egui_ctx);
             cc.egui_ctx.set_visuals(visuals());
+            enlarge_fonts(&cc.egui_ctx);
             let mut app = app;
             app.install_record_hotkey(&cc.egui_ctx);
             #[cfg(target_os = "windows")]
@@ -161,6 +162,16 @@ fn install_windows_icon_fonts(ctx: &egui::Context) {
 /// No system-font configuration is needed outside Windows.
 #[cfg(not(target_os = "windows"))]
 fn install_windows_icon_fonts(_ctx: &egui::Context) {}
+
+/// The compact window uses slightly larger type so labels stay readable.
+fn enlarge_fonts(ctx: &egui::Context) {
+    const SCALE: f32 = 1.2;
+    ctx.style_mut(|style| {
+        for font_id in style.text_styles.values_mut() {
+            font_id.size *= SCALE;
+        }
+    });
+}
 
 /// Visuals tuned for a palette that keeps colour-coded log badges legible
 /// without sinking the whole window into near-black.
